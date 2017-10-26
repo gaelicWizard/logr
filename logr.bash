@@ -2,7 +2,7 @@
 # Logging utility that simplifies user of bash logger command
 
 # # First source the script
-# source ~/scripts/logger.sh
+# source ~/scripts/logr.bash
 
 # # Start the logger, generates log name from scripts filename
 # logr start
