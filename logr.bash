@@ -12,11 +12,6 @@
 # logr [log|notice|info|debug|warn|error] MESSAGE
 # # or default to "user.info" facility
 # logr MESSAGE
-declare __logr_DEFAULT_LOG="scripts"
-
-declare __logr_LOG_NAME=
-declare __logr_SCRIPT_LOG=
-declare __logr_VERBOSE=
 logr() {
 	: ${__logr_LOG_DIR:="${HOME}/logs"}
 	# default to "user" facility, can be set to local[0-9], etc.
@@ -25,15 +20,16 @@ logr() {
 	: ${__logr_VERBOSE:=false}
 	# default log tag and filename to "scripts", changed via logr start command
 	: ${__logr_LOG_NAME:=$__logr_DEFAULT_LOG}
-	: ${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}
+	: ${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME:=scripts}.log"}
 
 	local function_name="${FUNCNAME[1]:-${BASH_SOURCE[1]:-}}"
 	local log_type
 	
-	if [[ ${1:-info} =~ ^(notice|log|info|warn(ing)?|err(or)?|emerg) ]]
+	if [[ "${1:-}" =~ ^(notice|log|info|warn(ing)?|err(or)?|emerg) ]]
 	then
 		log_type=${1:-info}
-		[[ "${1:-}" ]] && shift
+	else
+		log_type='info'
 	fi
 
 	# start must be called first, initializes logging, sets global log file
@@ -41,7 +37,7 @@ logr() {
 	# param 2: (string, optional) name of log source, defaults to "scripts" (.log will be appended)
 	if [[ $log_type == "start" ]]; then
 		local should_clean=false
-		mkdir -p "${__logr_LOG_DIR:=$__logr_DEFAULT_LOG_DIR}"
+		mkdir -p "${__logr_LOG_DIR}"
 		if [[ $1 =~ (^-v$|^verbose$) ]]; then
 			__logr_VERBOSE=true
 			shift
