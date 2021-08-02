@@ -14,7 +14,7 @@
 # logr MESSAGE
 if [[ "$OSTYPE" == 'darwin'* ]]
 then
-	__logr_DEFAULT_LOG_DIR="${HOME}/Library/Logs}"
+	__logr_DEFAULT_LOG_DIR="${HOME}/Library/Logs"
 else
 	__logr_DEFAULT_LOG_DIR="${HOME}/logs"
 fi
@@ -26,8 +26,8 @@ logr() {
 	# default to quiet, no output to STDERR
 	: ${__logr_VERBOSE:=false}
 	# default log tag and filename to "scripts", changed via logr start command
-	: ${__logr_LOG_NAME:=$__logr_DEFAULT_LOG}
-	: ${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME:=scripts}.log"}
+	: ${__logr_LOG_NAME:=scripts}
+	: ${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}
 
 	local function_name="${FUNCNAME[1]:-${BASH_SOURCE[1]:-interactive}}"
 	local log_type
@@ -65,7 +65,7 @@ logr() {
 			__logr_LOG_NAME=$1
 		fi
 
-		__logr_SCRIPT_LOG="${HOME}/logs/${__logr_LOG_NAME}.log"
+		__logr_SCRIPT_LOG="${__logr_LOG_DIR}/${__logr_LOG_NAME}.log"
 		touch $__logr_SCRIPT_LOG
 		$should_clean && logr clear
 		__logr_exec info $__logr_LOG_NAME "====> BEGIN LOGGING"
