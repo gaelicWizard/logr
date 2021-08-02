@@ -12,8 +12,15 @@
 # logr [log|notice|info|debug|warn|error] MESSAGE
 # # or default to "user.info" facility
 # logr MESSAGE
+if [[ "$OSTYPE" == 'darwin'* ]]
+then
+	__logr_DEFAULT_LOG_DIR="${HOME}/Library/Logs}"
+else
+	__logr_DEFAULT_LOG_DIR="${HOME}/logs"
+fi
+
 logr() {
-	: ${__logr_LOG_DIR:="${HOME}/logs"}
+	: ${__logr_LOG_DIR:=${__logr_DEFAULT_LOG_DIR:="${HOME}/Library/Logs"}}
 	# default to "user" facility, can be set to local[0-9], etc.
 	: ${__logr_FACILITY:=user}
 	# default to quiet, no output to STDERR
@@ -22,12 +29,13 @@ logr() {
 	: ${__logr_LOG_NAME:=$__logr_DEFAULT_LOG}
 	: ${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME:=scripts}.log"}
 
-	local function_name="${FUNCNAME[1]:-${BASH_SOURCE[1]:-}}"
+	local function_name="${FUNCNAME[1]:-${BASH_SOURCE[1]:-interactive}}"
 	local log_type
 	
 	if [[ "${1:-}" =~ ^(notice|log|info|warn(ing)?|err(or)?|emerg) ]]
 	then
-		log_type=${1:-info}
+		log_type="${1}"
+		shift
 	else
 		log_type='info'
 	fi
