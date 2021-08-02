@@ -16,7 +16,7 @@ if [[ "$OSTYPE" == 'darwin'* ]]
 then
 	__logr_DEFAULT_LOG_DIR="${HOME}/Library/Logs"
 else
-	__logr_DEFAULT_LOG_DIR="${HOME}/logs"
+	__logr_DEFAULT_LOG_DIR="${HOME}/.local/logs"
 fi
 
 logr() {
@@ -43,25 +43,25 @@ logr() {
 	# start must be called first, initializes logging, sets global log file
 	# param 1: (string, optional) [verbose|quiet], verbose echos to STDERR, defaults to quiet
 	# param 2: (string, optional) name of log source, defaults to "scripts" (.log will be appended)
-	if [[ $log_type == "start" ]]; then
+	if [[ "${1:-}" == "start" ]]; then
 		local should_clean=false
 		mkdir -p "${__logr_LOG_DIR}"
-		if [[ $1 =~ (^-v$|^verbose$) ]]; then
+		if [[ "$1" =~ (^-v$|^verbose$) ]]; then
 			__logr_VERBOSE=true
 			shift
-		elif [[ $1 =~ (^-q$|^quiet$) ]]; then
+		elif [[ "$1" =~ (^-q$|^quiet$) ]]; then
 			__logr_VERBOSE=false
 			shift
 		else
 			__logr_VERBOSE=false
 		fi
 
-		if [[ $1 =~ clea[nr] ]]; then
+		if [[ "${1:-}" =~ clea[nr] ]]; then
 			should_clean=true
 			shift
 		fi
 
-		if [[ -n "$1" ]]; then
+		if [[ -n "${1:-}" ]]; then
 			__logr_LOG_NAME=$1
 		fi
 
@@ -81,10 +81,10 @@ logr() {
 	# debug type shows full function stack
 	elif [[ $log_type == "debug" ]]; then
 		function_name=$(IFS="\\"; echo "${FUNCNAME[*]:1}")
-		__logr_exec debug "${__logr_LOG_NAME}:${function_name}" "${*:2}"
+		__logr_exec debug "${__logr_LOG_NAME}:${function_name}" "${*:1}"
 	# log, notice, info, warn, error set logging level
 	# warn and error go to /var/log/system.log as well as logfile
-	elif [[ ${log_type:=info} =~ ^(notice|log|info|warn(ing)?|err(or)?|emerg) ]]; then
+	elif [[ "${log_type:=info}" =~ ^(notice|log|info|warn(ing)?|err(or)?|emerg) ]]; then
 		local level
 		case $log_type in
 			notice|log) level="notice" ;;
@@ -94,7 +94,7 @@ logr() {
 			emerg) level="emerg" ;;
 			*) level="info" ;;
 		esac
-		__logr_exec $level "${__logr_LOG_NAME}:${function_name}" "${*:2}"
+		__logr_exec $level "${__logr_LOG_NAME}:${function_name}" "${*:1}"
 	# if no type is given, assumes info level
 	else
 		__logr_exec info "${__logr_LOG_NAME}:${function_name}" "${*:1}"
