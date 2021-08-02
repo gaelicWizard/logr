@@ -1,5 +1,6 @@
 #!/bin/bash
-# Logging utility that simplifies user of bash logger command
+#
+# Logging utility that simplifies user of posix logger command
 
 # # First source the script
 # source ~/scripts/logr.bash
@@ -30,7 +31,7 @@ logr() {
 	: ${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}
 
 	local function_name="${FUNCNAME[1]:-${BASH_SOURCE[1]:-interactive}}"
-	local log_type
+	local log_type=info cmd=:
 	
 	if [[ "${1:-}" =~ ^(notice|log|info|warn(ing)?|err(or)?|emerg) ]]
 	then
@@ -43,7 +44,7 @@ logr() {
 	# start must be called first, initializes logging, sets global log file
 	# param 1: (string, optional) [verbose|quiet], verbose echos to STDERR, defaults to quiet
 	# param 2: (string, optional) name of log source, defaults to "scripts" (.log will be appended)
-	if [[ "${1:-}" == "start" ]]
+	if [[ "${1:-start}" == "start" ]]
 	then
 		shift
 		local should_clean=false
@@ -70,38 +71,37 @@ logr() {
 			__logr_LOG_NAME=$1
 		fi
 
-		__logr_SCRIPT_LOG="${__logr_LOG_DIR}/${__logr_LOG_NAME}.log"
-		touch $__logr_SCRIPT_LOG
-		$should_clean && logr clear
+		: ${__logr_SCRIPT_LOG:="${__logr_LOG_DIR}/${__logr_LOG_NAME}.log"}
+		touch "$__logr_SCRIPT_LOG"
+		$should_clean && logr clear && return # short-circuit
 	# logr quiet => disables STDERR output
-	elif [[ $log_type == "quiet" ]]; then
+	elif [[ "$1" == "quiet" ]]
+	then
 		__logr_VERBOSE=false
+		shift
 	# logr verbose => enables STDERR output
-	elif [[ $log_type == "verbose" ]]; then
+	elif [[ "$1" == "verbose" ]]
+	then
 		__logr_VERBOSE=true
+		shift
 	# logr clear => clears the log (unless it's the default log)
-	elif [[ $log_type == "clear" && $__logr_LOG_NAME != $__logr_DEFAULT_LOG ]]; then
-		[[ -n $__logr_SCRIPT_LOG && -f $__logr_SCRIPT_LOG ]] && echo -n > $__logr_SCRIPT_LOG
+	elif [[ "$1" == "clear" && "$__logr_LOG_NAME" != "$__logr_DEFAULT_LOG" ]]
+	then
+		[[ -f "$__logr_SCRIPT_LOG" ]] && : > $__logr_SCRIPT_LOG
+		shift
 	# debug type shows full function stack
-	elif [[ $log_type == "debug" ]]; then
+	elif [[ "$1" == "debug" ]]
+	then
+		shift
 		function_name=$(IFS="\\"; echo "${FUNCNAME[*]:1}")
-		__logr_exec debug "${__logr_LOG_NAME}:${function_name}" "${*:1}"
-	# log, notice, info, warn, error set logging level
-	# warn and error go to /var/log/system.log as well as logfile
-	elif [[ "${log_type:=info}" =~ ^(notice|log|info|warn(ing)?|err(or)?|emerg) ]]; then
-		local level
-		case $log_type in
-			notice|log) level="notice" ;;
-			info) level="info" ;;
-			warn*) level="warning" ;;
-			err*) level="err" ;;
-			emerg) level="emerg" ;;
-			*) level="info" ;;
-		esac
-		__logr_exec $level "${__logr_LOG_NAME}:${function_name}" "${*:1}"
-	# if no type is given, assumes info level
+	fi
+
+	[[ "${__logr_VERBOSE:-false}" == 'true' ]] && cmd='tee -a'
+
+	if [[ $__logr_VERBOSE == true ]]; then
+		logger -p ${__logr_FACILITY}.$1 -t $1 -s $2 2>> >($cmd ${__logr_SCRIPT_LOG})
 	else
-		__logr_exec info "${__logr_LOG_NAME}:${function_name}" "${*:1}"
+		logger -p ${__logr_FACILITY}.$1 -t $1 -s $2 2>> ${__logr_SCRIPT_LOG}
 	fi
 }
 
