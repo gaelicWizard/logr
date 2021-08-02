@@ -43,20 +43,25 @@ logr() {
 	# start must be called first, initializes logging, sets global log file
 	# param 1: (string, optional) [verbose|quiet], verbose echos to STDERR, defaults to quiet
 	# param 2: (string, optional) name of log source, defaults to "scripts" (.log will be appended)
-	if [[ "${1:-}" == "start" ]]; then
+	if [[ "${1:-}" == "start" ]]
+	then
+		shift
 		local should_clean=false
 		mkdir -p "${__logr_LOG_DIR}"
-		if [[ "$1" =~ (^-v$|^verbose$) ]]; then
+		if [[ "$1" =~ (^-v$|^verbose$) ]]
+		then
 			__logr_VERBOSE=true
 			shift
-		elif [[ "$1" =~ (^-q$|^quiet$) ]]; then
+		elif [[ "$1" =~ (^-q$|^quiet$) ]]
+		then
 			__logr_VERBOSE=false
 			shift
 		else
 			__logr_VERBOSE=false
 		fi
 
-		if [[ "${1:-}" =~ clea[nr] ]]; then
+		if [[ "${1:-}" =~ clea[nr] ]]
+		then
 			should_clean=true
 			shift
 		fi
@@ -68,7 +73,6 @@ logr() {
 		__logr_SCRIPT_LOG="${__logr_LOG_DIR}/${__logr_LOG_NAME}.log"
 		touch $__logr_SCRIPT_LOG
 		$should_clean && logr clear
-		__logr_exec info $__logr_LOG_NAME "====> BEGIN LOGGING"
 	# logr quiet => disables STDERR output
 	elif [[ $log_type == "quiet" ]]; then
 		__logr_VERBOSE=false
