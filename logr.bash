@@ -31,8 +31,14 @@ logr() {
 	: ${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}
 
 	local function_name="${FUNCNAME[1]:-${BASH_SOURCE[1]:-interactive}}"
-	local log_type=info cmd=:
-	
+	local log_type=info cmd=: OPT= OPTARG= 
+	local -i OPTIND=1 OPTERR=1
+
+	while getopts "hfpt" OPT
+	do
+		
+	done
+
 	if [[ "${1:-}" =~ ^(notice|log|info|warn(ing)?|err(or)?|emerg) ]]
 	then
 		log_type="${1}"
