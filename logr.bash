@@ -31,12 +31,43 @@ logr() {
 	: ${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}
 
 	local function_name="${FUNCNAME[1]:-${BASH_SOURCE[1]:-interactive}}"
-	local log_type=info cmd=: OPT= OPTARG= 
+	local log_type=info OPT= OPTARG= 
+	local -a cmd=()
 	local -i OPTIND=1 OPTERR=1
 
-	while getopts "hfpt" OPT
+	if [[ "${1:-}" == 'start'|clea[nr]|'help' ]]
+	do # store initial command and shift
+		cmd="${1}"
+		#TODO: handle "logr start clear"
+		shift
+	done
+
+	while getopts "hfpqtv" OPT
 	do
-		
+		case "${OPT}" in
+		h)
+			: usage
+			;;
+		f)
+			: set file name
+			;;
+		p)
+			: set priority and optioally facility
+			;;
+		q)
+			: set not-verbose
+			;;
+		t)
+			: set tag
+			;;
+		v)
+			: set verbose
+			;;
+		*)
+			break
+			;;
+		esac
+		shift $((OPTIND-1))
 	done
 
 	if [[ "${1:-}" =~ ^(notice|log|info|warn(ing)?|err(or)?|emerg) ]]
