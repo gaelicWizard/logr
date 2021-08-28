@@ -12,7 +12,7 @@
 # logr [log|notice|info|debug|warn|error] MESSAGE
 # # or default to "user.info" facility
 # logr MESSAGE
-__logr_DEFAULT_LOG_DIR="${HOME}/logs"
+__logr_DEFAULT_LOG_DIR="${HOME}/Library/Logs"
 __logr_DEFAULT_LOG="scripts"
 
 unset __logr_LOG_NAME
@@ -37,7 +37,7 @@ logr() {
 	# param 2: (string, optional) name of log source, defaults to "scripts" (.log will be appended)
 	if [[ $log_type == "start" ]]; then
 		local should_clean=false
-		mkdir -p "${HOME}/logs/"
+		mkdir -p "${__logr_LOG_DIR}"
 		if [[ $2 =~ (^-v$|^verbose$) ]]; then
 			__logr_VERBOSE=true
 			shift
@@ -57,7 +57,7 @@ logr() {
 			__logr_LOG_NAME=$2
 		fi
 
-		__logr_SCRIPT_LOG="${HOME}/logs/${__logr_LOG_NAME}.log"
+		__logr_SCRIPT_LOG="${__logr_LOG_DIR}/${__logr_LOG_NAME}.log"
 		touch $__logr_SCRIPT_LOG
 		$should_clean && logr clear
 		__logr_exec info $__logr_LOG_NAME "====> BEGIN LOGGING"
