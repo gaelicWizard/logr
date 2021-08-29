@@ -29,8 +29,8 @@ function logr()
 		;;
 	esac
 
-	local verb=log level=info color=
-	local -i severity=7
+	local verb=log level= color=
+	local -i severity=7 # Default log level is 'DEBUG'.
 	while [[ ${#} -ge 1 ]]
 	do case "$1" in
 		# start must be called first, initializes logging, sets global log file
@@ -73,20 +73,17 @@ function logr()
 			verb="${verb%clean}"
 		fi
 
-		# If a color or escape sequence is specified /before/ the log level, then accept it for now...
-		case "${1:-}" in
-		$'\033['*|'\033['*|'\e['*|$'\e['*|$'\['*|'\['*)
-			color="$1"
-			shift;;
-		esac
+		break # Once we hit default case, end the loop.
+	esac
+	done
 
+	if [[ "${#}" -ge 1 ]]
+	then
 		# log, notice, info, warn, error set logging level
 		# warn and error go to /var/log/system.log as well as logfile
 		case "${1:-}" in
 			[Dd][Ee][Bb][Uu][Gg])
 				severity=7
-				# debug type shows full function stack
-				caller_name="$(IFS="\\"; echo "${FUNCNAME[*]:1}")"
 				shift;;
 			[Ii][Nn][Ff][Oo])
 				severity=6
@@ -106,15 +103,22 @@ function logr()
 			[Aa][Ll][Ee][Rr][Tt]|[Ff][Aa][Tt][Aa][Ll])
 				severity=1
 				shift;;
+			[Ee][Mm][Ee][Rr][Gg]*|[Pp][Aa][Nn][Ii][Cc])
+				severity=0
+				shift;;
 		esac
 
-		break # Once we hit default case, end the loop.
-	esac
-	done
+		if (( severity <= 4 ))
+		then # Always notify user of 'Warning' and worse
+			local __logr_VERBOSE=true
+		elif (( severity >= 6 ))
+		then
+			# debug and info types show full function stack
+			caller_name="$(IFS=":"; echo "${FUNCNAME[*]:1}")"
+		fi
 
-	if [[ "${#}" -ge 1 ]]
-	then
-		level="${__logr_LOG_LEVEL_SEVERITY[${severity}]:-}"
+		level="${__logr_LOG_LEVEL_SEVERITY[${severity}]:-info}"
+		color="${__logr_LOG_LEVEL_COLOR[${severity}]:-}"
 		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name}" "${*}" "${color}"
 	else
 		return 0 # nothing to log is "successful".
@@ -127,34 +131,36 @@ declare -a __logr_LOG_LEVEL_SEVERITY=(
 	[2]='Critical' # Urgent, we cannot continue but will try anyway.
 	[3]='Error' # Something is not working at all.
 	[4]='Warning' # Something is not as expected.
-	[5]='Notice' # Normal stuff is happening.
+	[5]='Notice' # Notify user of normal activity.
 	[6]='Info' # Nerds only.
 	[7]='Debug' # Developer trace information.
 )
 
 declare -a __logr_LOG_LEVEL_COLOR=(
-	[0]=""
-	[1]=""
-	[2]=""
-	[3]="${echo_red:-}"
-	[4]="${echo_yellow:-}"
-	[5]=""
-	[6]="${echo_green:-}"
-	[7]="${echo_blue:-}"
+	[0]=''
+	[1]=''
+	[2]=''
+	[3]='red'
+	[4]='yellow'
+	[5]=
+	[6]='green'
+	[7]='blue'
 )
 
 # execute the logger command
 # param 1: (string) [log|notice|info|debug|warn|error] log level
 # param 2: (string) Tag
 # param 3: (string) Message
-# param 4: (string) color (terminal escape sequence for `echo -e`)
+# param 4: (string) color (name of color defined in environment, e.g. 'red' => $echo_red)
 function __logr_logger()
 {
-	local level="${1:-}" tag="${2:-}" message="${3:-}" color="${4:-}"
+	local level="${1:-}" tag="${2:-}" message="${3:-}" color="${4:+echo_}${4:-}"
+	local "${color:=echo_none}"="${!color:-}"
+
 	if [[ ${__logr_VERBOSE:-false} == true ]]
 	then
-		logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message}" 2>> >(echo -ne "${color}"; tee -a "${__logr_SCRIPT_LOG}"; echo -ne "${color:+$'\033[0m'}")
-	else
-		logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message}" 2>> "${__logr_SCRIPT_LOG}"
+		echo -e "${!color}${tag}: ${message}${color:+$'\033[0m'}"
 	fi
+
+	logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message}" 2>> "${__logr_SCRIPT_LOG}"
 }
