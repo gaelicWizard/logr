@@ -20,14 +20,9 @@ function logr()
 	: "${__logr_LOG_NAME:=${__logr_DEFAULT_LOG:="scripts"}}"
 	: "${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}"
 
-	local caller_name="${FUNCNAME[2]:-}${FUNCNAME[2]:+:}${FUNCNAME[1]}" caller_source="${BASH_SOURCE[1]##*/}"
+	local caller_name="${FUNCNAME[2]:-}${FUNCNAME[2]:+:}${FUNCNAME[1]}"
 	# `$FUNCNAME` will reflect 'main' if the caller is the script itself, or 'source' if the caller is a sourced script.
-	case "${caller_name}" in
-	*':source')
-		caller_name="${caller_name%source}${caller_source%.bash}"
-		# If the 'function name' is "source", then use the script file name instead.
-		;;
-	esac
+	__logr_caller_name "${caller_name}"
 
 	local verb=log level= color=
 	local -i severity=7 # Default log level is 'DEBUG'.
@@ -114,12 +109,14 @@ function logr()
 		elif (( severity >= 6 ))
 		then
 			# debug and info types show full function stack
-			caller_name="$(IFS=":"; echo "${FUNCNAME[*]:1}")"
+			: #caller_name="$(IFS=":"; echo "${FUNCNAME[*]:1}")"
 		fi
+
+		# TODO: optargs -t=__bash_it_log_prefix[0]
 
 		level="${__logr_LOG_LEVEL_SEVERITY[${severity}]:-info}"
 		color="${__logr_LOG_LEVEL_COLOR[${severity}]:-}"
-		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name}" "${*}" "${color}"
+		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name}${caller_tag:+:}${caller_tag:-}" "${*}" "${color}"
 	else
 		return 0 # nothing to log is "successful".
 	fi
@@ -159,8 +156,29 @@ function __logr_logger()
 
 	if [[ ${__logr_VERBOSE:-false} == true ]]
 	then
-		echo -e "${!color}${tag}: ${message}${color:+$'\033[0m'}"
+		echo -e "${!color}($SECONDS) ${tag}: ${message}${color:+$'\033[0m'}"
 	fi
 
 	logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message}" 2>> "${__logr_SCRIPT_LOG}"
+}
+
+# Determine the correct caller name, function or script
+function __logr_caller_name()
+{
+	local -i frame=0
+	local caller_source=( "${BASH_SOURCE[@]:2}" )
+	caller_name=( "${FUNCNAME[@]:2}" )
+
+	# We are ${FUNCNAME[0]}, and `logr()` is ${FUNCNAME[1]}, so start with ${FUNCNAME[2]}:
+	while [[ ${caller_name[$frame]:-} ]]
+	do
+		if [[ ${caller_name[$frame]} == source ]]
+		then
+			caller_name[$frame]="${caller_source[$frame]##*/}"
+			caller_name[$frame]="${caller_name[$frame]%.bash}"
+		fi
+		(( frame++ ))
+	done
+
+	return 0
 }
