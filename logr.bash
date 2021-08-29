@@ -20,11 +20,11 @@ function logr()
 	: "${__logr_LOG_NAME:=${__logr_DEFAULT_LOG:="scripts"}}"
 	: "${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}"
 
-	local caller_name="${FUNCNAME[1]}"
+	local caller_name="${FUNCNAME[2]:-}${FUNCNAME[2]:+:}${FUNCNAME[1]}" caller_source="${BASH_SOURCE[1]##*/}"
 	# `$FUNCNAME` will reflect 'main' if the caller is the script itself, or 'source' if the caller is a sourced script.
 	case "${caller_name}" in
-	'source')
-		caller_name="${BASH_SOURCE[1]##*/}"
+	*':source')
+		caller_name="${caller_name%source}${caller_source%.bash}"
 		# If the 'function name' is "source", then use the script file name instead.
 		;;
 	esac
@@ -110,7 +110,7 @@ function logr()
 
 	if [[ "${#}" -ge 1 ]]
 	then
-		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name}" "${@}" "${color}"
+		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name}" "${*}" "${color}"
 	else
 		return 0 # nothing to log is "successful".
 	fi
