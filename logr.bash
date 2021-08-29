@@ -30,6 +30,7 @@ function logr()
 	esac
 
 	local verb=log level=info color=
+	local -i severity=7
 	while [[ ${#} -ge 1 ]]
 	do case "$1" in
 		# start must be called first, initializes logging, sets global log file
@@ -83,24 +84,27 @@ function logr()
 		# warn and error go to /var/log/system.log as well as logfile
 		case "${1:-}" in
 			[Dd][Ee][Bb][Uu][Gg])
-				level="debug"
+				severity=7
 				# debug type shows full function stack
 				caller_name="$(IFS="\\"; echo "${FUNCNAME[*]:1}")"
 				shift;;
-			[Nn][Oo][Tt][Ii][Cc][Ee]|[Ll][Oo][Gg])
-				level="notice"
-				shift;;
 			[Ii][Nn][Ff][Oo])
-				level="info"
+				severity=6
+				shift;;
+			[Nn][Oo][Tt][Ii][Cc][Ee]|[Ll][Oo][Gg])
+				severity=5
 				shift;;
 			[Ww][Aa][Rr][Nn]*)
-				level="warning"
+				severity=4
 				shift;;
 			[Ee][Rr][Rr]*)
-				level="err"
+				severity=3
 				shift;;
-			[Ee][Mm][Ee][Rr][Gg]|[Ff][Aa][Tt][Aa][Ll])
-				level="emerg"
+			[Cc][Rr][Ii][Tt][Ii][Cc][Aa][Ll])
+				severity=2
+				shift;;
+			[Aa][Ll][Ee][Rr][Tt]|[Ff][Aa][Tt][Aa][Ll])
+				severity=1
 				shift;;
 		esac
 
@@ -110,11 +114,34 @@ function logr()
 
 	if [[ "${#}" -ge 1 ]]
 	then
+		level="${__logr_LOG_LEVEL_SEVERITY[${severity}]:-}"
 		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name}" "${*}" "${color}"
 	else
 		return 0 # nothing to log is "successful".
 	fi
 }
+
+declare -a __logr_LOG_LEVEL_SEVERITY=(
+	[0]='Emergency' # The system is unusable; we will now Panic.
+	[1]='Alert' # Fatal, we cannot continue and will now exit.
+	[2]='Critical' # Urgent, we cannot continue but will try anyway.
+	[3]='Error' # Something is not working at all.
+	[4]='Warning' # Something is not as expected.
+	[5]='Notice' # Normal stuff is happening.
+	[6]='Info' # Nerds only.
+	[7]='Debug' # Developer trace information.
+)
+
+declare -a __logr_LOG_LEVEL_COLOR=(
+	[0]=""
+	[1]=""
+	[2]=""
+	[3]="${echo_red:-}"
+	[4]="${echo_yellow:-}"
+	[5]=""
+	[6]="${echo_green:-}"
+	[7]="${echo_blue:-}"
+)
 
 # execute the logger command
 # param 1: (string) [log|notice|info|debug|warn|error] log level
