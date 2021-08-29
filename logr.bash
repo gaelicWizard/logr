@@ -20,7 +20,7 @@ function logr()
 	: "${__logr_LOG_NAME:=${__logr_DEFAULT_LOG:="scripts"}}"
 	: "${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}"
 
-	local caller_name="${FUNCNAME[2]:-}${FUNCNAME[2]:+:}${FUNCNAME[1]}"
+	local caller_name="${FUNCNAME[2]:-}${FUNCNAME[2]:+:}${FUNCNAME[1]}" caller_tag
 	# `$FUNCNAME` will reflect 'main' if the caller is the script itself, or 'source' if the caller is a sourced script.
 	__logr_caller_name "${caller_name}"
 
@@ -109,14 +109,14 @@ function logr()
 		elif (( severity >= 6 ))
 		then
 			# debug and info types show full function stack
-			: #caller_name="$(IFS=":"; echo "${FUNCNAME[*]:1}")"
+			caller_tag="$(IFS=':'; echo "${caller_name[*]}")"
 		fi
 
 		# TODO: optargs -t=__bash_it_log_prefix[0]
 
 		level="${__logr_LOG_LEVEL_SEVERITY[${severity}]:-info}"
 		color="${__logr_LOG_LEVEL_COLOR[${severity}]:-}"
-		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name}${caller_tag:+:}${caller_tag:-}" "${*}" "${color}"
+		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_tag:-${caller_name}}" "${*}" "${color}"
 	else
 		return 0 # nothing to log is "successful".
 	fi
