@@ -29,7 +29,7 @@ function logr()
 		;;
 	esac
 
-	local verb=log level=info
+	local verb=log level=info color=
 	while [[ ${#} -ge 1 ]]
 	do case "$1" in
 		# start must be called first, initializes logging, sets global log file
@@ -72,6 +72,13 @@ function logr()
 			verb="${verb%clean}"
 		fi
 
+		# If a color or escape sequence is specified /before/ the log level, then accept it for now...
+		case "${1:-}" in
+		$'\033['*|'\033['*|'\e['*|$'\e['*|$'\['*|'\['*)
+			color="$1"
+			shift;;
+		esac
+
 		# log, notice, info, warn, error set logging level
 		# warn and error go to /var/log/system.log as well as logfile
 		case "${1:-}" in
@@ -96,14 +103,14 @@ function logr()
 				level="emerg"
 				shift;;
 		esac
-		
+
 		break # Once we hit default case, end the loop.
 	esac
 	done
 
 	if [[ "${#}" -ge 1 ]]
 	then
-		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name}" "${@}"
+		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name}" "${@}" "${color}"
 	else
 		return 0 # nothing to log is "successful".
 	fi
