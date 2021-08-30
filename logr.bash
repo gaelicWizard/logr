@@ -164,7 +164,7 @@ function __logr_logger()
 
 	if [[ ${__logr_VERBOSE:-false} == true ]]
 	then
-		echo -e "${!color}($SECONDS) ${tag}: ${message}${color:+$'\033[0m'}"
+		echo -e "${!color}($SECONDS) ${level} ${tag}: ${message}${color:+$'\033[0m'}"
 	fi
 
 	logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message}" 2>> "${__logr_SCRIPT_LOG}"
