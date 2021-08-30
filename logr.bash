@@ -31,7 +31,7 @@ function logr()
 		# param 2: (string, optional) name of log source, defaults to "scripts" (.log will be appended)
 	'start')
 		shift # start
-		#TODO: optargs -d=2 depth
+		#TODO: optargs -q -v -d=2 depth
 		#echo "${BASH_SOURCE[@]:1}"
 		__logr_scope_depth=$(( ${#BASH_SOURCE[@]} -1 ))
 		verb=start
