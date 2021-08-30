@@ -23,7 +23,7 @@ function logr()
 	: "${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}"
 
 	local caller_name= caller_tag= verb=log level= color=
-	local -i severity=7 # Default log level is 'DEBUG'.
+	local -i severity=6 # Default log level is 'INFO'.
 	while [[ ${#} -ge 1 ]]
 	do case "$1" in
 		# start must be called first, initializes logging, sets global log file
@@ -65,7 +65,6 @@ function logr()
 		fi
 
 		__logr_SCRIPT_LOG="${__logr_LOG_DIR%/}/${__logr_LOG_NAME:=${__logr_DEFAULT_LOG}}.log"
-		__logr_logger info "$__logr_LOG_NAME" "====> BEGIN LOGGING"
 		verb="${verb#start}"
 	fi
 	if [[ ${verb:-} == *'clean' ]]
@@ -73,7 +72,6 @@ function logr()
 		if [[ $__logr_LOG_NAME != $__logr_DEFAULT_LOG ]]
 		then
 			: > "$__logr_SCRIPT_LOG"
-			__logr_logger info "$__logr_LOG_NAME" "====> CLEARED LOG"
 		fi
 		verb="${verb%clean}"
 	fi
@@ -121,13 +119,11 @@ function logr()
 		fi
 
 		# TODO: optargs -t=__bash_it_log_prefix[0]
-
-		level="${__logr_LOG_LEVEL_SEVERITY[${severity}]:-info}"
-		color="${__logr_LOG_LEVEL_COLOR[${severity}]:-}"
-		__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_tag:-${caller_name}}" "${*}" "${color}"
-	else
-		return 0 # nothing to log is "successful".
 	fi
+
+	level="${__logr_LOG_LEVEL_SEVERITY[${severity}]:-info}"
+	color="${__logr_LOG_LEVEL_COLOR[${severity}]:-}"
+	__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_tag:-${caller_name}}" "${*:-BEGIN LOGGING}" "${color}"
 }
 
 declare -a __logr_LOG_LEVEL_SEVERITY=(
