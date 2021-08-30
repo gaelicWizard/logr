@@ -52,26 +52,31 @@ function logr()
 		verb+=clean
 		;;
 	*)
-		if [[ ${verb:-} == 'start'* ]]
-		then
-			__logr_LOG_NAME="$1"; shift
-			__logr_SCRIPT_LOG="${__logr_LOG_DIR}/${__logr_LOG_NAME}.log"
-			__logr_logger info "$__logr_LOG_NAME" "====> BEGIN LOGGING"
-			verb="${verb#start}"
-		fi
-		if [[ ${verb:-} == *'clean' ]]
-		then
-			if [[ $__logr_LOG_NAME != $__logr_DEFAULT_LOG ]]
-			then
-				: > "$__logr_SCRIPT_LOG"
-				__logr_logger info "$__logr_LOG_NAME" "====> CLEARED LOG"
-			fi
-			verb="${verb%clean}"
-		fi
-
 		break # Once we hit default case, end the loop.
 	esac
 	done
+
+	if [[ ${verb:-} == 'start'* ]]
+	then
+		if [[ ${1:-} ]]
+		then
+			__logr_LOG_NAME="${1}"
+			shift
+		fi
+
+		__logr_SCRIPT_LOG="${__logr_LOG_DIR%/}/${__logr_LOG_NAME:=${__logr_DEFAULT_LOG}}.log"
+		__logr_logger info "$__logr_LOG_NAME" "====> BEGIN LOGGING"
+		verb="${verb#start}"
+	fi
+	if [[ ${verb:-} == *'clean' ]]
+	then
+		if [[ $__logr_LOG_NAME != $__logr_DEFAULT_LOG ]]
+		then
+			: > "$__logr_SCRIPT_LOG"
+			__logr_logger info "$__logr_LOG_NAME" "====> CLEARED LOG"
+		fi
+		verb="${verb%clean}"
+	fi
 
 	if [[ "${#}" -ge 1 ]]
 	then
