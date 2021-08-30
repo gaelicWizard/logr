@@ -13,6 +13,8 @@
 
 function logr()
 {
+	#TODO: bail and reset if we're out of scope of the last `start` command.
+
 	: "${__logr_LOG_DIR:=${__logr_DEFAULT_LOG_DIR:="${HOME}/Library/Logs"}}"
 	[[ -d "$__logr_LOG_DIR" ]] || mkdir -p "$__logr_LOG_DIR"
 
@@ -20,11 +22,7 @@ function logr()
 	: "${__logr_LOG_NAME:=${__logr_DEFAULT_LOG:="scripts"}}"
 	: "${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}"
 
-	local caller_name="${FUNCNAME[2]:-}${FUNCNAME[2]:+:}${FUNCNAME[1]}" caller_tag
-	# `$FUNCNAME` will reflect 'main' if the caller is the script itself, or 'source' if the caller is a sourced script.
-	__logr_caller_name "${caller_name}"
-
-	local verb=log level= color=
+	local caller_name= caller_tag= verb=log level= color=
 	local -i severity=7 # Default log level is 'DEBUG'.
 	while [[ ${#} -ge 1 ]]
 	do case "$1" in
@@ -33,6 +31,9 @@ function logr()
 		# param 2: (string, optional) name of log source, defaults to "scripts" (.log will be appended)
 	'start')
 		shift # start
+		#TODO: optargs -d=2 depth
+		#echo "${BASH_SOURCE[@]:1}"
+		__logr_scope_depth=$(( ${#BASH_SOURCE[@]} -1 ))
 		verb=start
 		;;
 	'quiet'|'-q')
@@ -103,10 +104,12 @@ function logr()
 				shift;;
 		esac
 
+		__logr_caller_name "${__logr_scope_depth:-0}"
+
 		if (( severity <= 4 ))
 		then # Always notify user of 'Warning' and worse
 			local __logr_VERBOSE=true
-		elif (( severity >= 6 ))
+		elif (( severity > 6 ))
 		then
 			# debug and info types show full function stack
 			caller_tag="$(IFS=':'; echo "${caller_name[*]}")"
@@ -162,14 +165,16 @@ function __logr_logger()
 	logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message}" 2>> "${__logr_SCRIPT_LOG}"
 }
 
-# Determine the correct caller name, function or script
+# Determine the correct caller name: function or script
+# parap 1: (integer) Scope depth (truncate $BASH_SOURCE)
 function __logr_caller_name()
 {
-	local -i frame=0
-	local caller_source=( "${BASH_SOURCE[@]:2}" )
-	caller_name=( "${FUNCNAME[@]:2}" )
+	local -i frame=0 depth=$(( ${#BASH_SOURCE[@]} - ${1:-0} ))
+	local caller_source=( "${BASH_SOURCE[@]:2:$depth}" )
+	caller_name=( "${FUNCNAME[@]:2:$depth}" )
 
-	# We are ${FUNCNAME[0]}, and `logr()` is ${FUNCNAME[1]}, so start with ${FUNCNAME[2]}:
+	# `$FUNCNAME` will reflect 'main' if the caller is the script itself, or 'source' if the caller is a sourced script.
+	# We are `${FUNCNAME[0]}`, and `logr()` is `${FUNCNAME[1]}`, so start with `${FUNCNAME[2]}`:
 	while [[ ${caller_name[$frame]:-} ]]
 	do
 		if [[ ${caller_name[$frame]} == source ]]
