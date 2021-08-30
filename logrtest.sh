@@ -1,6 +1,6 @@
 #!/bin/bash
 # Source the script file
-source ~/scripts/logr.bash
+source "${BASH_SOURCE%/*}/logr.bash"
 
 script_func() {
     logr warn "$*"
