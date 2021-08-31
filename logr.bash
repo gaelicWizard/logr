@@ -13,38 +13,39 @@
 
 function logr()
 {
-	#TODO: bail and reset if we're out of scope of the last `start` command.
+	if [[ ${__logr_scope_depth:-0} -gt ${#BASH_SOURCE[@]} ]]
+	then # reset if we're out of scope of the last `start` command.
+		unset "${!__logr@}"
+	fi
 
-	: "${__logr_LOG_DIR:=${__logr_DEFAULT_LOG_DIR:="${HOME}/Library/Logs"}}"
-	[[ -d "$__logr_LOG_DIR" ]] || mkdir -p "$__logr_LOG_DIR"
+	# Defaults, use `logr start` to specify your own.
+	local __logr_DEFAULT_LOG_DIR="${HOME}/Library/Logs"
+	local __logr_DEFAULT_LOG="scripts"
+	local __logr_SCRIPT_LOG
 
-	# default log tag and filename to "scripts", changed via logr start command
-	: "${__logr_LOG_NAME:=${__logr_DEFAULT_LOG:="scripts"}}"
-	: "${__logr_SCRIPT_LOG:="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"}"
-
-	local caller_name= caller_tag= verb=log level= color=
+	local caller_name= caller_tag= verb= level= color=
 	local -i severity=6 # Default log level is 'INFO'.
+	local -i quiet="${__logr_VERBOSE:=4}" # Don't print to STDERR below 'warning'
 	while [[ ${#} -ge 1 ]]
 	do case "$1" in
-		# start must be called first, initializes logging, sets global log file
-		# param 1: (string, optional) [verbose|quiet], verbose echos to STDERR, defaults to quiet
-		# param 2: (string, optional) name of log source, defaults to "scripts" (.log will be appended)
 	'start')
+		# start should be called first, initializes logging, sets global log file
+		# param 1: (string, optional) [verbose|-v|quiet|-q], verbose echos to STDERR, defaults to quiet
+		# param 2: (string, optional) name of log source, defaults to "scripts" (.log will be appended)
 		shift # start
-		#TODO: optargs -q -v -d=2 depth
-		#echo "${BASH_SOURCE[@]:1}"
-		__logr_scope_depth=$(( ${#BASH_SOURCE[@]} -1 ))
-		verb=start
+		#TODO: optargs -q -v -p=path -d=2 depth
+		__logr_scope_depth=$(( ${#BASH_SOURCE[@]} ))
+		verb="start${verb}"
 		;;
 	'quiet'|'-q')
 		# logr quiet => disables STDERR output
 		shift # quiet
-		__logr_VERBOSE=false
+		__logr_VERBOSE=2
 		;;
 	'verbose'|'-v')
 		# logr verbose => enables STDERR output
 		shift # verbose
-		__logr_VERBOSE=true
+		__logr_VERBOSE=7
 		;;
 	'clea'[nr])
 		# logr clear => clears the log (unless it's the default log)
@@ -64,9 +65,15 @@ function logr()
 			shift
 		fi
 
-		__logr_SCRIPT_LOG="${__logr_LOG_DIR%/}/${__logr_LOG_NAME:=${__logr_DEFAULT_LOG}}.log"
 		verb="${verb#start}"
 	fi
+
+	: "${__logr_LOG_DIR:=${__logr_DEFAULT_LOG_DIR}}"
+	[[ -d "$__logr_LOG_DIR" ]] || mkdir -p "$__logr_LOG_DIR"
+
+	: "${__logr_LOG_NAME:=${__logr_DEFAULT_LOG}}"
+	__logr_SCRIPT_LOG="${__logr_LOG_DIR%/}/${__logr_LOG_NAME}.log"
+
 	if [[ ${verb:-} == *'clean' ]]
 	then
 		if [[ $__logr_LOG_NAME != $__logr_DEFAULT_LOG ]]
@@ -77,7 +84,7 @@ function logr()
 	fi
 
 	if [[ "${#}" -ge 1 ]]
-	then
+	then verb=log
 		# log, notice, info, warn, error set logging level
 		# warn and error go to /var/log/system.log as well as logfile
 		case "${1:-}" in
@@ -109,13 +116,10 @@ function logr()
 
 		__logr_caller_name "${__logr_scope_depth:-0}"
 
-		if (( severity <= 4 ))
-		then # Always notify user of 'Warning' and worse
-			local __logr_VERBOSE=true
-		elif (( severity > 6 ))
+		if (( severity > 6 ))
 		then
-			# debug and info types show full function stack
-			caller_tag="$(IFS=':'; echo "${caller_name[*]}")"
+			# Tracing types show full function stack
+			caller_tag="$(IFS=':'; echo "${caller_name[*]:-}")"
 		fi
 
 		# TODO: optargs -t=__bash_it_log_prefix[0]
@@ -123,11 +127,11 @@ function logr()
 
 	level="${__logr_LOG_LEVEL_SEVERITY[${severity}]:-info}"
 	color="${__logr_LOG_LEVEL_COLOR[${severity}]:-}"
-	__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_tag:-${caller_name}}" "${*:-BEGIN LOGGING}" "${color}"
+	__logr_logger "${level}" "${__logr_LOG_NAME}${caller_name:+:}${caller_tag:-${caller_name:-}}" "${*:-BEGIN LOGGING}" "${color}"
 }
 
 declare -a __logr_LOG_LEVEL_SEVERITY=(
-	[0]='Emergency' # The system is unusable; we will now Panic.
+	[0]='Emergency' # The system is unusable: Eldritch Panic.
 	[1]='Alert' # Fatal, we cannot continue and will now exit.
 	[2]='Critical' # Urgent, we cannot continue but will try anyway.
 	[3]='Error' # Something is not working at all.
@@ -158,7 +162,7 @@ function __logr_logger()
 	local level="${1:-}" tag="${2:-}" message="${3:-}" color="${4:+echo_}${4:-}"
 	local "${color:=echo_none}"="${!color:-}"
 
-	if [[ ${__logr_VERBOSE:-false} == true ]]
+	if (( ${__logr_VERBOSE:-0} >= ${severity:-0} ))
 	then
 		echo -e "${!color}($SECONDS) ${level} ${tag}: ${message}${color:+$'\033[0m'}"
 	fi
@@ -170,7 +174,8 @@ function __logr_logger()
 # parap 1: (integer) Scope depth (truncate $BASH_SOURCE)
 function __logr_caller_name()
 {
-	local -i frame=0 depth=$(( ${#BASH_SOURCE[@]} - ${1:-0} ))
+	local -i frame=0 depth=$(( ${#BASH_SOURCE[@]} - ${1:-0} - 1 ))
+		# Reduce $depth by one since `__logr_caller_name()` is one function deeper in the stack then the function that passed in $1.
 	local caller_source=( "${BASH_SOURCE[@]:2:$depth}" )
 	caller_name=( "${FUNCNAME[@]:2:$depth}" )
 
@@ -180,8 +185,13 @@ function __logr_caller_name()
 	do
 		if [[ ${caller_name[$frame]} == source ]]
 		then
-			caller_name[$frame]="${caller_source[$frame]##*/}"
-			caller_name[$frame]="${caller_name[$frame]%.bash}"
+			if [[ ${caller_source[$frame]} == ${BASH_SOURCE[$depth]} ]]
+			then
+				caller_name[$frame]='main'
+			else
+				caller_name[$frame]="${caller_source[$frame]##*/}"
+				caller_name[$frame]="${caller_name[$frame]%.bash}"
+			fi
 		fi
 		(( frame++ ))
 	done
