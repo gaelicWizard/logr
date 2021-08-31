@@ -119,7 +119,7 @@ function logr()
 		if (( severity > 6 ))
 		then
 			# Tracing types show full function stack
-			caller_tag="$(IFS=':'; echo "${caller_name[*]:-}")"
+			caller_name="$(IFS=':'; echo "${caller_name[*]:-}")"
 		fi
 
 		# TODO: optargs -t=__bash_it_log_prefix[0]
@@ -127,7 +127,7 @@ function logr()
 
 	level="${__logr_LOG_LEVEL_SEVERITY[${severity}]:-info}"
 	color="${__logr_LOG_LEVEL_COLOR[${severity}]:-}"
-	__logr_logger "${level}" "${__logr_LOG_NAME}${caller_name:+:}${caller_tag:-${caller_name:-}}" "${*:-BEGIN LOGGING}" "${color}"
+	__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name:-main}${caller_tag:+:}${caller_tag:-}" "${*:-BEGIN LOGGING}" "${color}"
 }
 
 declare -a __logr_LOG_LEVEL_SEVERITY=(
