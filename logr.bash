@@ -25,7 +25,7 @@ function logr()
 
 	local caller_name= caller_tag= verb= level= color=
 	local -i severity=6 # Default log level is 'INFO'.
-	local -i quiet="${__logr_VERBOSE:=4}" # Don't print to STDERR below 'warning'
+	: "${__logr_VERBOSE:=4}" # Don't print to STDERR below 'warning'
 	while [[ ${#} -ge 1 ]]
 	do case "$1" in
 	'start')
@@ -33,16 +33,29 @@ function logr()
 		# param 1: (string, optional) [verbose|-v|quiet|-q], verbose echos to STDERR, defaults to quiet
 		# param 2: (string, optional) name of log source, defaults to "scripts" (.log will be appended)
 		shift # start
-		#TODO: optargs -q -v -p=path -d=2 depth
+		local OPT OPTARG
+		local -i OPTIND=1 OPTERR=1
+		while getopts "vq" OPT
+		do
+			case "${OPT}" in
+			q)
+				((__logr_VERBOSE--))
+				;;
+			v)
+				((__logr_VERBOSE++))
+				;;
+			esac
+			shift $((OPTIND-1))
+		done
 		__logr_scope_depth=$(( ${#BASH_SOURCE[@]} ))
 		verb="start${verb}"
 		;;
-	'quiet'|'-q')
+	'quiet')
 		# logr quiet => disables STDERR output
 		shift # quiet
 		__logr_VERBOSE=2
 		;;
-	'verbose'|'-v')
+	'verbose')
 		# logr verbose => enables STDERR output
 		shift # verbose
 		__logr_VERBOSE=7
@@ -83,6 +96,8 @@ function logr()
 		verb="${verb%clean}"
 	fi
 
+	local -i __logr_VERBOSE="${__logr_VERBOSE}"
+
 	if [[ "${#}" -ge 1 ]]
 	then verb=log
 		# log, notice, info, warn, error set logging level
@@ -113,6 +128,24 @@ function logr()
 				severity=0
 				shift;;
 		esac
+
+		local OPT OPTARG
+		local -i OPTIND=1 OPTERR=1
+		while getopts "vqt:" OPT
+		do
+			case "${OPT}" in
+			q)
+				((__logr_VERBOSE--))
+				;;
+			v)
+				((__logr_VERBOSE++))
+				;;
+			t)
+				caller_tag="${OPTARG}"
+				;;
+			esac
+			shift $((OPTIND-1))
+		done
 
 		__logr_caller_name "${__logr_scope_depth:-0}"
 
@@ -165,6 +198,8 @@ function __logr_logger()
 	if (( ${__logr_VERBOSE:-0} >= ${severity:-0} ))
 	then
 		echo -e "${!color}($SECONDS) ${level} ${tag}: ${message}${color:+$'\033[0m'}"
+	else
+		echo "${__logr_VERBOSE:-0} >= ${severity:-0}"
 	fi
 
 	logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message}" 2>> "${__logr_SCRIPT_LOG}"
