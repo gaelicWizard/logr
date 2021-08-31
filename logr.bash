@@ -96,7 +96,7 @@ function logr()
 		verb="${verb%clean}"
 	fi
 
-	local -i __logr_VERBOSE="${__logr_VERBOSE}"
+	local -i __logr_VERBOSE="${__logr_VERBOSE:=4}"
 
 	if [[ "${#}" -ge 1 ]]
 	then verb=log
