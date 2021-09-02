@@ -198,8 +198,6 @@ function __logr_logger()
 	if (( ${__logr_VERBOSE:-0} >= ${severity:-0} ))
 	then
 		echo -e "${!color}($SECONDS) ${level} ${tag}: ${message}${color:+$'\033[0m'}"
-	else
-		echo "${__logr_VERBOSE:-0} >= ${severity:-0}"
 	fi
 
 	logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message}" 2>> "${__logr_SCRIPT_LOG}"
