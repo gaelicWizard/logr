@@ -35,9 +35,13 @@ function logr()
 		shift # start
 		local OPT OPTARG
 		local -i OPTIND=1 OPTERR=1
-		while getopts "vq" OPT
+		__logr_scope_depth=$(( ${#BASH_SOURCE[@]} ))
+		while getopts "vqd:" OPT
 		do
 			case "${OPT}" in
+			d)
+				((__logr_scope_depth-=OPTARG))
+				;;
 			q)
 				((__logr_VERBOSE--))
 				;;
@@ -47,7 +51,6 @@ function logr()
 			esac
 			shift $((OPTIND-1))
 		done
-		__logr_scope_depth=$(( ${#BASH_SOURCE[@]} ))
 		verb="start${verb}"
 		;;
 	'quiet')
