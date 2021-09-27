@@ -100,33 +100,40 @@ function logr()
 
 	if [[ "${#}" -ge 1 ]]
 	then verb=log
+		level="${1:-}"
+		if [[ "${FUNCNAME[0]}" =~ ^.*[_-]([[:alnum:]]*)$ ]]
+		then
+			level="${BASH_REMATCH[1]}"
+		else
+			shift # $level=$1
+		fi
 		# log, notice, info, warn, error set logging level
 		# warn and error go to /var/log/system.log as well as logfile
-		case "${1:-}" in
-			[Dd][Ee][Bb][Uu][Gg])
+		case "${level}" in
+			[Dd][Ee][Bb][Uu][Gg]|[Tt][Rr][Aa][Cc][Ee])
 				severity=7
-				shift;;
+				;;
 			[Ii][Nn][Ff][Oo])
 				severity=6
-				shift;;
+				;;
 			[Nn][Oo][Tt][Ii][Cc][Ee]|[Ll][Oo][Gg])
 				severity=5
-				shift;;
-			[Ww][Aa][Rr][Nn]*)
+				;;
+			[Ww][Aa][Rr][Nn]|[Ww][Aa][Rr][Nn][Ii][Nn][Gg])
 				severity=4
-				shift;;
-			[Ee][Rr][Rr]*)
+				;;
+			[Ee][Rr][Rr]|[Ee][Rr][Rr][Oo][Rr])
 				severity=3
-				shift;;
+				;;
 			[Cc][Rr][Ii][Tt][Ii][Cc][Aa][Ll])
 				severity=2
-				shift;;
+				;;
 			[Aa][Ll][Ee][Rr][Tt]|[Ff][Aa][Tt][Aa][Ll])
 				severity=1
-				shift;;
-			[Ee][Mm][Ee][Rr][Gg]*|[Pp][Aa][Nn][Ii][Cc])
+				;;
+			[Ee][Mm][Ee][Rr][Gg]|[Ee][Mm][Ee][Rr][Gg][Ee][Nn][Cc][Yy]|[Pp][Aa][Nn][Ii][Cc])
 				severity=0
-				shift;;
+				;;
 		esac
 
 		local OPT OPTARG
