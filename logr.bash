@@ -65,6 +65,17 @@ function logr()
 		shift # clean
 		verb+=clean
 		;;
+	'clone')
+		# logr clone _new_name => duplicates this function with a new name
+		shift # clone
+		level="${1?}"
+		shift # $level
+		local clone="$(declare -f "${FUNCNAME[0]}")"
+		eval "${clone/${FUNCNAME[0]} ()/${level}()}"
+		verb+=clone
+		#TODO: allow `clone` to be used with other verbs
+		return # full stop
+		;;
 	*)
 		break # Once we hit default case, end the loop.
 	esac
