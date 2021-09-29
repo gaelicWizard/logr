@@ -36,11 +36,11 @@ function logr()
 		local OPT OPTARG
 		local -i OPTIND=1 OPTERR=1
 		__logr_scope_depth=$(( ${#BASH_SOURCE[@]} ))
-		while getopts "vqd:" OPT
+		while getopts "vqd" OPT
 		do
 			case "${OPT}" in
 			d)
-				((__logr_scope_depth-=OPTARG))
+				((__logr_scope_depth--))
 				;;
 			q)
 				((__logr_VERBOSE--))
@@ -115,7 +115,7 @@ function logr()
 	if [[ "${#}" -ge 1 ]]
 	then verb=log
 		level="${1:-}"
-		if [[ "${FUNCNAME[0]}" =~ ^.*[_-]([[:alnum:]]*)$ ]]
+		if [[ "${FUNCNAME[0]}" =~ ^.*[_-]([[:alpha:]]*)$ ]]
 		then
 			level="${BASH_REMATCH[1]}"
 		else
@@ -172,19 +172,20 @@ function logr()
 
 		if (( severity > 6 ))
 		then
-			# Tracing types show full function stack
-			caller_name="$(IFS=':'; echo "${caller_name[*]:-}")"
+			# Tracing types shows three stack frames
+			caller_name="${caller_name[2]:-}${caller_name[2]:+:}${caller_name[1]:-}${caller_name[1]:+:}${caller_name[0]}"
 		fi
 
 		# TODO: optargs -t=__bash_it_log_prefix[0]
 	fi
 
-	level="${__logr_LOG_LEVEL_SEVERITY[${severity}]:-info}"
-	color="${__logr_LOG_LEVEL_COLOR[${severity}]:-}"
-	__logr_logger "${level}" "${__logr_LOG_NAME}:${caller_name:-main}${caller_tag:+:}${caller_tag:-}" "${*:-BEGIN LOGGING}" "${color}"
+	#caller_name="${BASH_SOURCE[1]##*/}/${FUNCNAME[1]}"
+	level="${_logr_LOG_LEVEL_SEVERITY[severity]:-info}"
+	color="${_logr_LOG_LEVEL_COLOR[severity]:-}"
+	__logr_logger "${level}" "${__logr_LOG_NAME}: ${caller_name:-default}${caller_tag:+:}${caller_tag:-}" "${*:-BEGIN LOGGING}" "${color}" || true
 }
 
-declare -a __logr_LOG_LEVEL_SEVERITY=(
+declare -ar _logr_LOG_LEVEL_SEVERITY=(
 	[0]='Emergency' # The system is unusable: Eldritch Panic.
 	[1]='Alert' # Fatal, we cannot continue and will now exit.
 	[2]='Critical' # Urgent, we cannot continue but will try anyway.
@@ -195,7 +196,7 @@ declare -a __logr_LOG_LEVEL_SEVERITY=(
 	[7]='Debug' # Developer trace information.
 )
 
-declare -a __logr_LOG_LEVEL_COLOR=(
+declare -a _logr_LOG_LEVEL_COLOR=(
 	[0]=''
 	[1]=''
 	[2]=''
@@ -221,30 +222,30 @@ function __logr_logger()
 		echo -e "${!color}($SECONDS) ${level} ${tag}: ${message}${color:+$'\033[0m'}"
 	fi
 
-	logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message}" 2>> "${__logr_SCRIPT_LOG}"
+	logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message//[^[:print:]]/}" 2>> "${__logr_SCRIPT_LOG}"
 }
 
 # Determine the correct caller name: function or script
 # parap 1: (integer) Scope depth (truncate $BASH_SOURCE)
 function __logr_caller_name()
 {
-	local -i frame=0 depth=$(( ${#BASH_SOURCE[@]} - ${1:-0} - 1 ))
-		# Reduce $depth by one since `__logr_caller_name()` is one function deeper in the stack then the function that passed in $1.
+	local -i frame=0 depth=$(( ${#BASH_SOURCE[@]} - ${1:-0} ))
 	local caller_source=( "${BASH_SOURCE[@]:2:$depth}" )
-	caller_name=( "${FUNCNAME[@]:2:$depth}" )
-
 	# `$FUNCNAME` will reflect 'main' if the caller is the script itself, or 'source' if the caller is a sourced script.
 	# We are `${FUNCNAME[0]}`, and `logr()` is `${FUNCNAME[1]}`, so start with `${FUNCNAME[2]}`:
-	while [[ ${caller_name[$frame]:-} ]]
+	caller_name=( "${FUNCNAME[@]:2:$depth}" )
+
+	while [[ ${caller_name[frame]:-} ]]
 	do
-		if [[ ${caller_name[$frame]} == source ]]
+		if [[ ${caller_name[frame]} == source ]]
 		then
-			if [[ ${caller_source[$frame]} == ${BASH_SOURCE[$depth]} ]]
+			if [[ ${caller_source[frame]} == ${BASH_SOURCE[depth +1]} ]]
+				# Increase $depth by one since `__logr_caller_name()` is one function deeper in the stack then the function that passed in $1.
 			then
-				caller_name[$frame]='main'
+				caller_name[frame]='main'
 			else
-				caller_name[$frame]="${caller_source[$frame]##*/}"
-				caller_name[$frame]="${caller_name[$frame]%.bash}"
+				caller_name[frame]="${caller_source[frame]##*/}"
+				caller_name[frame]="${caller_name[frame]%.bash}"
 			fi
 		fi
 		(( frame++ ))
