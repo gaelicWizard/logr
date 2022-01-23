@@ -228,7 +228,13 @@ function __logr_logger()
 
 	if (( ${__logr_VERBOSITY:-0} >= ${severity:-0} ))
 	then
-		printf '%s\n' "${message}" >&"${fd}"
+		if ! printf '%s\n' "${message}" >&"${fd}" 2>/dev/null
+			# Handle the possibility that the coprocess has exited but the file descriptor hasn't been cleaned up.
+		then
+			unset "__logr_log_${level}"
+			__logr_logger "$@"
+			return
+		fi
 		#caller 1 >&"${fd}"
 	fi
 
