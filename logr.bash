@@ -13,11 +13,6 @@
 
 function logr()
 {
-	if [[ ${__logr_scope_depth:-0} -gt ${#BASH_SOURCE[@]} ]]
-	then # reset if we're out of scope of the last `start` command.
-		unset "${!__logr@}"
-	fi
-
 	# Defaults, use `logr start` to specify your own.
 	local __logr_DEFAULT_LOG_DIR="${HOME}/Library/Logs"
 	local __logr_DEFAULT_LOG="scripts"
@@ -35,7 +30,6 @@ function logr()
 		shift # start
 		local OPT OPTARG
 		local -i OPTIND=1 OPTERR=1
-		__logr_scope_depth=$(( ${#BASH_SOURCE[@]} ))
 		while getopts "vqd" OPT
 		do
 			case "${OPT}" in
@@ -61,7 +55,7 @@ function logr()
 	'verbose')
 		# logr verbose => enables STDERR output
 		shift # verbose
-		__logr_VERBOSE=7
+		__logr_VERBOSE=6
 		;;
 	'clea'[nr])
 		# logr clear => clears the log (unless it's the default log)
@@ -80,6 +74,7 @@ function logr()
 		return # full stop
 		;;
 	*)
+		[[ ${1:-} == "--" ]] && shift
 		break # Once we hit default case, end the loop.
 	esac
 	done
@@ -110,7 +105,7 @@ function logr()
 		verb="${verb%clean}"
 	fi
 
-	local -i __logr_VERBOSE="${__logr_VERBOSE:=4}"
+	local -i __logr_VERBOSITY="${__logr_VERBOSE:=4}"
 
 	if [[ "${#}" -ge 1 ]]
 	then verb=log
@@ -156,10 +151,10 @@ function logr()
 		do
 			case "${OPT}" in
 			q)
-				((__logr_VERBOSE--))
+				((__logr_VERBOSITY--))
 				;;
 			v)
-				((__logr_VERBOSE++))
+				((__logr_VERBOSITY++))
 				;;
 			t)
 				caller_tag="${OPTARG}"
@@ -168,12 +163,12 @@ function logr()
 			shift $((OPTIND-1))
 		done
 
-		__logr_caller_name "${__logr_scope_depth:-0}"
+		__logr_caller_name
 
 		if (( severity > 6 ))
 		then
 			# Tracing types shows three stack frames
-			caller_name="${caller_name[2]:-}${caller_name[2]:+:}${caller_name[1]:-}${caller_name[1]:+:}${caller_name[0]}"
+			: caller_name="${caller_name[2]:-}${caller_name[2]:+:}${caller_name[1]:-}${caller_name[1]:+:}${caller_name[0]:-main}"
 		fi
 
 		# TODO: optargs -t=__bash_it_log_prefix[0]
@@ -182,7 +177,7 @@ function logr()
 	#caller_name="${BASH_SOURCE[1]##*/}/${FUNCNAME[1]}"
 	level="${_logr_LOG_LEVEL_SEVERITY[severity]:-info}"
 	color="${_logr_LOG_LEVEL_COLOR[severity]:-}"
-	__logr_logger "${level}" "${__logr_LOG_NAME}: ${caller_name:-default}${caller_tag:+:}${caller_tag:-}" "${*:-BEGIN LOGGING}" "${color}" || true
+	__logr_logger "${severity}" "${__logr_LOG_NAME}" "${caller_name[1]:-}${caller_name[1]:+:}${caller_name}: ${*:-LOGGING}" "${color}" || true
 }
 
 declare -ar _logr_LOG_LEVEL_SEVERITY=(
@@ -214,39 +209,48 @@ declare -a _logr_LOG_LEVEL_COLOR=(
 # param 4: (string) color (name of color defined in environment, e.g. 'red' => $echo_red)
 function __logr_logger()
 {
-	local level="${1:-}" tag="${2:-}" message="${3:-}" color="${4:+echo_}${4:-}"
-	local "${color:=echo_none}"="${!color:-}"
+	local severity="${1?}" tag="${2?}" message="${3?}"
+	local level="${_logr_LOG_LEVEL_SEVERITY[severity]}"
 
-	if (( ${__logr_VERBOSE:-0} >= ${severity:-0} ))
+	local echo_verbose_to_screen
+	if (( ${__logr_VERBOSITY:-0} >= ${severity:-0} ))
 	then
-		echo -e "${!color}($SECONDS) ${level} ${tag}: ${message}${color:+$'\033[0m'}"
+		echo_verbose_to_screen=yas
 	fi
 
-	logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}" -s "${message//[^[:print:]]/}" 2>> "${__logr_SCRIPT_LOG}"
+	[[ -v "__logr_log_fd" ]] || coproc "__logr_log_fd" { exec tee -ia "${__logr_SCRIPT_LOG:-/dev/null}" >&2; }
+	[[ -v "__logr_log_${level}" ]] || coproc "__logr_log_${level}" { trap '' INT; exec logger -p "${severity}" -t "${tag}" ${echo_verbose_to_screen:+-s} 2>&"${__logr_log_fd[1]?}"; }
+	#"${message//[![:print:]]/}" 
+	
+	local df="__logr_log_${level}[1]"
+	local fd="${!df}"
+	#echo "__logr_log_${level}"="${df}"="${fd[1]}"
+
+	if (( ${__logr_VERBOSITY:-0} >= ${severity:-0} ))
+	then
+		printf '%s\n' "${message}" >&"${fd}"
+		#caller 1 >&"${fd}"
+	fi
+
+	#logger -p "${severity}" -t "${tag}" -s "${message//[^[:print:]]/}" 2>> "${__logr_SCRIPT_LOG}"
 }
 
 # Determine the correct caller name: function or script
 # parap 1: (integer) Scope depth (truncate $BASH_SOURCE)
 function __logr_caller_name()
 {
-	local -i frame=0 depth=$(( ${#BASH_SOURCE[@]} - ${1:-0} ))
-	local caller_source=( "${BASH_SOURCE[@]:2:$depth}" )
+	local -i frame=0
+	local caller_source=( "${BASH_SOURCE[@]:2}" )
 	# `$FUNCNAME` will reflect 'main' if the caller is the script itself, or 'source' if the caller is a sourced script.
 	# We are `${FUNCNAME[0]}`, and `logr()` is `${FUNCNAME[1]}`, so start with `${FUNCNAME[2]}`:
-	caller_name=( "${FUNCNAME[@]:2:$depth}" )
+	caller_name=( "${FUNCNAME[@]:2}" )
 
-	while [[ ${caller_name[frame]:-} ]]
+	while [[ ${#caller_name[@]} -ge 0 ]] && [[ -n ${caller_name[frame]:-} ]]
 	do
 		if [[ ${caller_name[frame]} == source ]]
 		then
-			if [[ ${caller_source[frame]} == ${BASH_SOURCE[depth +1]} ]]
-				# Increase $depth by one since `__logr_caller_name()` is one function deeper in the stack then the function that passed in $1.
-			then
-				caller_name[frame]='main'
-			else
-				caller_name[frame]="${caller_source[frame]##*/}"
-				caller_name[frame]="${caller_name[frame]%.bash}"
-			fi
+			caller_name[frame]="${caller_source[frame]##*/}"
+			caller_name[frame]="${caller_name[frame]%.bash}"
 		fi
 		(( frame++ ))
 	done
