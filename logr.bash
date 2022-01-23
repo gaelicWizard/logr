@@ -105,7 +105,7 @@ function logr()
 		verb="${verb%clean}"
 	fi
 
-	local -i __logr_VERBOSITY="${__logr_VERBOSE:=4}"
+	local -i __logr_VERBOSITY="${__logr_VERBOSE}"
 
 	if [[ "${#}" -ge 1 ]]
 	then verb=log
@@ -177,7 +177,7 @@ function logr()
 	#caller_name="${BASH_SOURCE[1]##*/}/${FUNCNAME[1]}"
 	level="${_logr_LOG_LEVEL_SEVERITY[severity]:-info}"
 	color="${_logr_LOG_LEVEL_COLOR[severity]:-}"
-	__logr_logger "${severity}" "${__logr_LOG_NAME}" "${caller_name[1]:-}${caller_name[1]:+:}${caller_name}: ${*:-LOGGING}" "${color}" || true
+	__logr_logger "${severity}" "${__logr_LOG_NAME}" "${caller_name[1]:-}${caller_name[1]:+:}${caller_name[0]:-}${caller_name[0]:+: }${*:-LOGGING}" "${color}"
 }
 
 declare -ar _logr_LOG_LEVEL_SEVERITY=(
@@ -212,37 +212,40 @@ function __logr_logger()
 	local severity="${1?}" tag="${2?}" message="${3?}"
 	local level="${_logr_LOG_LEVEL_SEVERITY[severity]}"
 
-	local echo_verbose_to_screen
+	local __logr_out
+	#TODO: `tee` inside the coproc causes an entire subshell...
+	#TODO: do the trick to route stderr for `coproc` without fucking with the process to avoid the fucking "still exists" message...
+	#TODO: ...maybe `tail` the log and lose the `tee` altogether...? :-/
+
+	[[ -v "__logr_out_log" ]] || exec {__logr_out_log}>> "${__logr_SCRIPT_LOG:-/dev/null}"
+	[[ -v "__logr_out_verbose" ]] || coproc "__logr_out_verbose" { exec tee -ia "/dev/stderr" >&"${__logr_out_log?}"; }
+
 	if (( ${__logr_VERBOSITY:-0} >= ${severity:-0} ))
 	then
-		echo_verbose_to_screen=yas
+		__logr_out="${__logr_out_verbose[1]}"
+	else
+		__logr_out="${__logr_out_log}"
 	fi
+	[[ -v "__logr_log_${level}" ]] || coproc "__logr_log_${level}" { trap '' INT; exec logger -p "${__logr_FACILITY:-"user"}.${level}" -t "${tag}[$$]|" -s 2>&"${__logr_out?}"; }
 
-	[[ -v "__logr_log_fd" ]] || coproc "__logr_log_fd" { exec tee -ia "${__logr_SCRIPT_LOG:-/dev/null}" >&2; }
-	[[ -v "__logr_log_${level}" ]] || coproc "__logr_log_${level}" { trap '' INT; exec logger -p "${severity}" -t "${tag}" ${echo_verbose_to_screen:+-s} 2>&"${__logr_log_fd[1]?}"; }
-	#"${message//[![:print:]]/}" 
-	
 	local df="__logr_log_${level}[1]"
 	local fd="${!df}"
 	#echo "__logr_log_${level}"="${df}"="${fd[1]}"
 
-	if (( ${__logr_VERBOSITY:-0} >= ${severity:-0} ))
+	if ! printf '%s\n' "${message//[![:print:]]/}" >&"${fd}" 2>/dev/null
+		# Handle the possibility that the coprocess has exited but the file descriptor hasn't been cleaned up.
 	then
-		if ! printf '%s\n' "${message}" >&"${fd}" 2>/dev/null
-			# Handle the possibility that the coprocess has exited but the file descriptor hasn't been cleaned up.
-		then
-			unset "__logr_log_${level}"
-			__logr_logger "$@"
-			return
-		fi
-		#caller 1 >&"${fd}"
+		#TODO: handle the case where this fails twice...don't want infinite recursion
+		kill -s 0 "${__logr_out_verbose_PID}" || unset "__logr_out_verbose" "__logr_out_verbose_PID"
+		unset "__logr_log_${level}" "__logr_log_${level}_PID"
+		__logr_logger "$@"
+		return
 	fi
-
-	#logger -p "${severity}" -t "${tag}" -s "${message//[^[:print:]]/}" 2>> "${__logr_SCRIPT_LOG}"
+	#caller 1 >&"${fd}"
 }
 
 # Determine the correct caller name: function or script
-# parap 1: (integer) Scope depth (truncate $BASH_SOURCE)
+# param 1: (integer) Scope depth (truncate $BASH_SOURCE)
 function __logr_caller_name()
 {
 	local -i frame=0
